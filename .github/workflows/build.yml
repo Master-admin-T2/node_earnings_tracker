@@ -1,17 +1,15 @@
-name: Build Multi-Platform Executables
+name: Build and Release
 
 on:
   push:
-    branches: [ "master" ]
-  pull_request:
-    branches: [ "master" ]
+    tags:
+      - 'v*' # Triggars vid taggar som v1.0, v1.1 etc.
 
 jobs:
   build:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        # Vi kör på Windows, Ubuntu (Linux) och macOS
         os: [windows-latest, ubuntu-latest, macos-latest]
 
     steps:
@@ -28,15 +26,52 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    - name: Build with PyInstaller
+    - name: Build with PyInstaller (Windows)
+      if: matrix.os == 'windows-latest'
       run: |
-        # --onefile skapar en enda fil
-        # --windowed ser till att ingen svart terminalruta öppnas (eftersom du har GUI)
-        # --name döper filen
         pyinstaller --onefile --windowed --name "NodeEarningsTracker" node-earings-ANT-v8.3.py
+        # Flytta till en ren mapp för uppladdning
+        mkdir upload
+        mv dist/NodeEarningsTracker.exe upload/
+
+    - name: Build with PyInstaller (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        pyinstaller --onefile --windowed --name "NodeEarningsTracker-Linux" node-earings-ANT-v8.3.py
+        mkdir upload
+        mv dist/NodeEarningsTracker-Linux upload/
+
+    - name: Build with PyInstaller (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        pyinstaller --onefile --windowed --name "NodeEarningsTracker" node-earings-ANT-v8.3.py
+        mkdir upload
+        # Skapa en ZIP av den binära filen för Mac
+        cd dist && zip -r ../upload/NodeEarningsTracker-Mac.zip .
 
     - name: Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: NodeEarnings-${{ matrix.os }}
-        path: dist/
+        name: binary-${{ matrix.os }}
+        path: upload/
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Viktigt för att Actions ska få skapa releasen
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: all-binaries
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            all-binaries/binary-windows-latest/*
+            all-binaries/binary-ubuntu-latest/*
+            all-binaries/binary-macos-latest/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
