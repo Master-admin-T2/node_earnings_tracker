@@ -1,0 +1,42 @@
+name: Build Multi-Platform Executables
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        # Vi kör på Windows, Ubuntu (Linux) och macOS
+        os: [windows-latest, ubuntu-latest, macos-latest]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Build with PyInstaller
+      run: |
+        # --onefile skapar en enda fil
+        # --windowed ser till att ingen svart terminalruta öppnas (eftersom du har GUI)
+        # --name döper filen
+        pyinstaller --onefile --windowed --name "NodeEarningsTracker" node-earings-ANT-v8.3.py
+
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: NodeEarnings-${{ matrix.os }}
+        path: dist/
